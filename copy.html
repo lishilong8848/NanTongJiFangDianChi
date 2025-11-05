@@ -1,53 +1,92 @@
 <!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>一键复制</title>
 <style>
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'PingFang SC','Microsoft YaHei',sans-serif;margin:24px;line-height:1.6}
   textarea{width:100%;height:40vh}
   button{padding:12px 16px;font-size:16px}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 </style>
+
 <h2>一键复制</h2>
-<p>页面不会向服务器上传你扫描到的内容（数据在 URL 的 <code>#</code> 片段里，留在本地浏览器）。</p>
-<textarea id="t" readonly>解析中...</textarea><br><br>
-<button id="btn">复制内容</button>
+<p>点击下方按钮即可复制：</p>
+<textarea id="t" readonly></textarea>
+<div class="row">
+  <button id="btn">复制内容</button>
+  <button id="sel">仅选中文本</button>
+  <a id="open" target="_blank" rel="noopener">在浏览器打开</a>
+</div>
 
 <script>
-function b64UrlToUint8(s){
-  s = s.replace(/^b64[:=]/,'').replace(/-/g,'+').replace(/_/g,'/');
-  if (s.length % 4) s += '='.repeat(4 - (s.length % 4));
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
-  return out;
+// 1) 从 #b64: 片段解码文本（URL-safe Base64）
+function readFromHash(){
+  const h = location.hash || "";
+  const m = h.match(/^#b64:([A-Za-z0-9_-]+)$/);
+  if(!m) return "";
+  let b = m[1];
+  b += "=".repeat((4 - b.length % 4) % 4);             // 补齐 padding
+  const s = atob(b.replace(/-/g,'+').replace(/_/g,'/'));
+  // 把二进制字符串转回 UTF-8
+  return decodeURIComponent(escape(s));
 }
-function decodeHash(){
-  const raw = (location.hash || '').replace(/^#/,'');
-  const payload = raw.replace(/^b64[:=]/,''); // 兼容 b64: 或 b64=
-  if (!payload){ return '（URL中没有数据）'; }
-  try{
-    const bytes = b64UrlToUint8(payload);
-    return new TextDecoder('utf-8').decode(bytes);
-  }catch(e){
-    return '解析失败：' + e;
-  }
-}
-const ta = document.getElementById('t');
-ta.value = decodeHash();
+const area = document.getElementById('t');
+area.value = readFromHash();
 
+// 提供一个“外部浏览器打开”的纯链接，避免某些内核限制
+document.getElementById('open').href = location.href;
+
+// 2) 复制实现：现代 → 传统 → 选中兜底
+function legacyCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly','');
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';    // 不用 display:none，避免无法选中
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+async function doCopy(text){
+  // HTTPS + 用户手势下优先走 Clipboard API
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch(e){}
+  }
+  // 回退到 execCommand
+  return legacyCopy(text);
+}
+
+// 3) 按钮交互
 const btn = document.getElementById('btn');
-btn.addEventListener('click', async ()=>{
-  const t = ta.value;
-  try{
-    if (navigator.clipboard && window.isSecureContext){
-      await navigator.clipboard.writeText(t);
-    }else{
-      const ta2 = document.createElement('textarea');
-      ta2.value = t; ta2.style.position='fixed'; ta2.style.opacity='0';
-      document.body.appendChild(ta2); ta2.focus(); ta2.select();
-      document.execCommand('copy'); document.body.removeChild(ta2);
+const sel = document.getElementById('sel');
+
+btn.addEventListener('click', async () => {
+  const text = area.value || "";
+  // 超长提示（可按需要调阈值）
+  if (text.length > 20000) {
+    // 给出分段或下载兜底的提示文案（这里简单提示）
+    console.warn('文本较长，可能导致复制失败。');
+  }
+  try {
+    const ok = await doCopy(text);
+    if (ok) {
+      btn.textContent = "已复制 ✅";
+    } else {
+      area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
+      btn.textContent = "复制失败，已选中文本";
     }
-    btn.textContent = '已复制 ✅';
-  }catch(e){ btn.textContent = '复制失败，请长按全选复制'; }
+  } catch (e) {
+    area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
+    btn.textContent = "复制失败，请长按选择复制";
+  }
+});
+
+sel.addEventListener('click', () => {
+  area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
 });
 </script>
