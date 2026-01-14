@@ -75,11 +75,11 @@
     <button id="btn">复制内容</button>
 
     <div id="log"></div>
-    <div class="version">Page Version: v1.0.3 (Debug Mode)</div>
+    <div class="version">Page Version: v1.0.4 (No-CORS Mode)</div>
 </div>
 
 <script>
-    // --- 日志工具：把 console 输出显示在屏幕上以便调试 ---
+    // --- 日志工具 ---
     const logEl = document.getElementById('log');
     function logToScreen(msg, type = 'info') {
         logEl.style.display = 'block';
@@ -88,21 +88,18 @@
         console.log(msg);
     }
 
-    // 1. 从 URL 解析 L_HAO (?l_hao=X)
+    // 1. URL 解析
     const params = new URLSearchParams(window.location.search);
     const L_HAO = params.get('l_hao') || 'Unknown';
 
-    // 2. 从 Hash 解析文本 (#b64:XXXX)
+    // 2. Base64 解析
     function init() {
-        const hash = window.location.hash; // #b64:....
+        const hash = window.location.hash;
         if (hash.startsWith('#b64:')) {
-            const b64 = hash.slice(5); // 去掉 #b64:
+            const b64 = hash.slice(5);
             try {
-                // URL-Safe Base64 处理: - -> +, _ -> /
                 let stdB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-                // 补齐 padding
                 while (stdB64.length % 4) { stdB64 += '='; }
-                // 解码 (UTF-8 兼容)
                 const text = decodeURIComponent(escape(window.atob(stdB64)));
                 document.getElementById('t').value = text;
             } catch (e) {
@@ -110,42 +107,39 @@
                 logToScreen("Base64解码错误: " + e, 'error');
             }
         } else {
-            document.getElementById('t').value = "URL 中未包含有效数据 (Format: #b64:...)";
+            document.getElementById('t').value = "URL 数据无效";
         }
     }
 
-    // 3. 按钮点击
+    // 3. 点击事件
     const btn = document.getElementById('btn');
     btn.addEventListener('click', async () => {
         const t = document.getElementById('t').value;
-        logToScreen("正在尝试发送 webhook...", 'info');
+        logToScreen("正在尝试发送 webhook (No-CORS Mode)...", 'info');
 
-        // 发送 Webhook
-        // 注意：如果是跨域(CORS)请求被拦截，这里可能会抛错或者 fail
+        // ★★★ 关键修改：mode: 'no-cors'，去掉 json header ★★★
+        // 这样浏览器会作为 'text/plain' 发送 POST，不触发 OPTIONS 预检。
+        // 如果飞书后端能兼容纯文本 body 的 JSON，就能成功。
         fetch("https://vnet.feishu.cn/base/automation/webhook/event/RI6naGJV5w4eeQhQJ1ccMOTTnng", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            mode: 'no-cors', // 允许跨域盲发
+            // headers: { "Content-Type": "application/json" }, // 必须去掉，否则不是简单请求
             body: JSON.stringify({
                 content: t,
                 L_HAO: L_HAO
             })
         })
             .then(response => {
-                if (response.ok) {
-                    logToScreen("Webhook 发送成功 (200 OK)");
-                } else {
-                    logToScreen(`Webhook 服务器返回错误: ${response.status} ${response.statusText}`);
-                }
+                // no-cors 模式下 type 为 'opaque'，status 为 0，无法知道结果是 200 还是 500
+                // 但只要没报错，就说明请求发出去了
+                logToScreen("请求已发出！(无回执模式)");
+                logToScreen("注意：由于跨域限制，无法确认飞书接收结果，请直接查看飞书群。");
             })
             .catch(e => {
-                logToScreen("Webhook 发送失败(可能是跨域/网络问题): " + e);
-                // 尝试 no-cors 模式兜底（注意：no-cors 不能发 application/json，只能发 text/plain 或 form，且无法知道结果）
-                // 这里只是为了让请求能发出去，即便后端可能解析不到 JSON
-                // logToScreen("尝试无 CORS 模式发送...");
-                // fetch(..., { mode: 'no-cors' ... }) 
+                logToScreen("发送严重错误: " + e);
             });
 
-        // 执行复制
+        // 复制逻辑
         try {
             if (navigator.clipboard && window.isSecureContext) {
                 await navigator.clipboard.writeText(t);
@@ -163,8 +157,8 @@
             btn.textContent = '已复制 ✅';
             setTimeout(() => btn.textContent = '复制内容', 3000);
         } catch (e) {
-            logToScreen("复制剪贴板失败: " + e);
-            btn.textContent = '复制失败，请手动复制';
+            logToScreen("复制失败: " + e);
+            btn.textContent = '复制失败';
         }
     });
 
