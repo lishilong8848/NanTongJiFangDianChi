@@ -3,76 +3,170 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>一键复制</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'PingFang SC','Microsoft YaHei',sans-serif;margin:24px;line-height:1.6}
-textarea{width:100%;height:40vh}
-button{padding:12px 16px;font-size:16px}
+    body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        margin: 24px;
+        line-height: 1.6;
+        background: #f5f5f5
+    }
+
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1)
+    }
+
+    textarea {
+        width: 100%;
+        height: 150px;
+        margin-bottom: 16px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-family: monospace;
+        resize: vertical
+    }
+
+    button {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+        color: #fff;
+        background: #007aff;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: active 0.1s
+    }
+
+    button:active {
+        opacity: 0.8
+    }
+
+    .version {
+        text-align: center;
+        font-size: 12px;
+        color: #999;
+        margin-top: 20px;
+        margin-bottom: 10px
+    }
+
+    #log {
+        margin-top: 20px;
+        padding: 10px;
+        background: #333;
+        color: #0f0;
+        font-size: 12px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        display: none
+    }
 </style>
-<h2>一键复制</h2>
-<p>点击下方按钮即可复制：</p>
-<textarea id="t" readonly></textarea><br><br>
-<button id="btn">复制内容</button>
+
+<div class="container">
+    <h2>一键复制</h2>
+    <p style="color:#666;font-size:14px">点击下方按钮即可复制内容并通知：</p>
+    <textarea id="t" readonly></textarea>
+    <button id="btn">复制内容</button>
+
+    <div id="log"></div>
+    <div class="version">Page Version: v1.0.3 (Debug Mode)</div>
+</div>
 
 <script>
-// 1. 从 URL 解析 L_HAO (?l_hao=X)
-const params = new URLSearchParams(window.location.search);
-const L_HAO = params.get('l_hao') || 'Unknown';
-
-// 2. 从 Hash 解析文本 (#b64:XXXX)
-function init() {
-  const hash = window.location.hash; // #b64:....
-  if (hash.startsWith('#b64:')) {
-    const b64 = hash.slice(5); // 去掉 #b64:
-    try {
-        // URL-Safe Base64 处理: - -> +, _ -> /
-        let stdB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-        // 补齐 padding
-        while (stdB64.length % 4) { stdB64 += '='; }
-        // 解码 (UTF-8 兼容)
-        const text = decodeURIComponent(escape(window.atob(stdB64)));
-        document.getElementById('t').value = text;
-    } catch (e) {
-        document.getElementById('t').value = "解码失败：" + e;
+    // --- 日志工具：把 console 输出显示在屏幕上以便调试 ---
+    const logEl = document.getElementById('log');
+    function logToScreen(msg, type = 'info') {
+        logEl.style.display = 'block';
+        const time = new Date().toLocaleTimeString();
+        logEl.innerText += `[${time}] ${msg}\n`;
+        console.log(msg);
     }
-  } else {
-    document.getElementById('t').value = "URL 中未包含有效数据 (Format: #b64:...)";
-  }
-}
 
-// 3. 按钮点击：发送 Webhook + 复制
-const btn = document.getElementById('btn');
-btn.addEventListener('click', async () => {
-  const t = document.getElementById('t').value;
-  
-  // 发送 Webhook
-  fetch("https://vnet.feishu.cn/base/automation/webhook/event/RI6naGJV5w4eeQhQJ1ccMOTTnng", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-        content: t,
-        L_HAO: L_HAO
-    })
-  }).then(() => console.log('Webhook sent')).catch(e => console.error(e));
+    // 1. 从 URL 解析 L_HAO (?l_hao=X)
+    const params = new URLSearchParams(window.location.search);
+    const L_HAO = params.get('l_hao') || 'Unknown';
 
-  // 执行复制
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(t);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = t;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
+    // 2. 从 Hash 解析文本 (#b64:XXXX)
+    function init() {
+        const hash = window.location.hash; // #b64:....
+        if (hash.startsWith('#b64:')) {
+            const b64 = hash.slice(5); // 去掉 #b64:
+            try {
+                // URL-Safe Base64 处理: - -> +, _ -> /
+                let stdB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+                // 补齐 padding
+                while (stdB64.length % 4) { stdB64 += '='; }
+                // 解码 (UTF-8 兼容)
+                const text = decodeURIComponent(escape(window.atob(stdB64)));
+                document.getElementById('t').value = text;
+            } catch (e) {
+                document.getElementById('t').value = "解码失败：" + e;
+                logToScreen("Base64解码错误: " + e, 'error');
+            }
+        } else {
+            document.getElementById('t').value = "URL 中未包含有效数据 (Format: #b64:...)";
+        }
     }
-    btn.textContent = '已复制 ✅';
-  } catch (e) {
-    btn.textContent = '复制失败，请长按全选复制';
-  }
-});
 
-init();
+    // 3. 按钮点击
+    const btn = document.getElementById('btn');
+    btn.addEventListener('click', async () => {
+        const t = document.getElementById('t').value;
+        logToScreen("正在尝试发送 webhook...", 'info');
+
+        // 发送 Webhook
+        // 注意：如果是跨域(CORS)请求被拦截，这里可能会抛错或者 fail
+        fetch("https://vnet.feishu.cn/base/automation/webhook/event/RI6naGJV5w4eeQhQJ1ccMOTTnng", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                content: t,
+                L_HAO: L_HAO
+            })
+        })
+            .then(response => {
+                if (response.ok) {
+                    logToScreen("Webhook 发送成功 (200 OK)");
+                } else {
+                    logToScreen(`Webhook 服务器返回错误: ${response.status} ${response.statusText}`);
+                }
+            })
+            .catch(e => {
+                logToScreen("Webhook 发送失败(可能是跨域/网络问题): " + e);
+                // 尝试 no-cors 模式兜底（注意：no-cors 不能发 application/json，只能发 text/plain 或 form，且无法知道结果）
+                // 这里只是为了让请求能发出去，即便后端可能解析不到 JSON
+                // logToScreen("尝试无 CORS 模式发送...");
+                // fetch(..., { mode: 'no-cors' ... }) 
+            });
+
+        // 执行复制
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(t);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = t;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            btn.textContent = '已复制 ✅';
+            setTimeout(() => btn.textContent = '复制内容', 3000);
+        } catch (e) {
+            logToScreen("复制剪贴板失败: " + e);
+            btn.textContent = '复制失败，请手动复制';
+        }
+    });
+
+    init();
 </script>
