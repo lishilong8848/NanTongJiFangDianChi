@@ -75,7 +75,7 @@
     <button id="btn">复制内容</button>
 
     <div id="log"></div>
-    <div class="version">Page Version: v1.0.4 (No-CORS Mode)</div>
+    <div class="version">Page Version: v1.0.5 (No-CORS Mode)</div>
 </div>
 
 <script>
@@ -140,24 +140,43 @@
             });
 
         // 复制逻辑
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(t);
-            } else {
+        async function performCopy(text) {
+            // 优先尝试 Clipboard API
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                }
+            } catch (err) {
+                console.warn("Clipboard API 失败，尝试降级方案...", err);
+            }
+
+            // 降级方案：document.execCommand
+            try {
                 const ta = document.createElement('textarea');
-                ta.value = t;
+                ta.value = text;
+                // 移出可视区域但保持可选中
                 ta.style.position = 'fixed';
-                ta.style.opacity = '0';
+                ta.style.left = '-9999px';
+                ta.style.top = '0';
                 document.body.appendChild(ta);
                 ta.focus();
                 ta.select();
-                document.execCommand('copy');
+                const successful = document.execCommand('copy');
                 document.body.removeChild(ta);
+                if (successful) return true;
+            } catch (err) {
+                console.error("execCommand 失败", err);
             }
+            return false;
+        }
+
+        const success = await performCopy(t);
+        if (success) {
             btn.textContent = '已复制 ✅';
             setTimeout(() => btn.textContent = '复制内容', 3000);
-        } catch (e) {
-            logToScreen("复制失败: " + e);
+        } else {
+            logToScreen("复制失败: 浏览器均拒绝访问剪贴板");
             btn.textContent = '复制失败';
         }
     });
