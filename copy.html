@@ -75,7 +75,7 @@
     <button id="btn">复制内容</button>
 
     <div id="log"></div>
-    <div class="version">Page Version: v1.0.7 (No-CORS Mode)</div>
+    <div class="version">Page Version: v1.0.8 (No-CORS Mode)</div>
 </div>
 
 <script>
@@ -118,7 +118,7 @@
         logToScreen("正在尝试发送 Webhook (Flow Mode)...", 'info');
 
         // DingTalk Flow Webhook (无须签名)
-        const WEBHOOK_URL = "https://connector.dingtalk.com/webhook/flow/10368ad4287e2132f676000b";
+        const WEBHOOK_URL = "https://connector.dingtalk.com/webhook/flow/10368af12db721468050000b";
 
         try {
             // 构造消息体 (与 test_dingtalk_flow.py 格式一致)
@@ -189,3 +189,4 @@
 
     init();
 </script>
+
