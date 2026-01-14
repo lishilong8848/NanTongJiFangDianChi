@@ -1,87 +1,78 @@
 <!doctype html>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>一键复制</title>
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'PingFang SC','Microsoft YaHei',sans-serif;margin:24px;line-height:1.6}
-  textarea{width:100%;height:40vh}
-  button{padding:12px 16px;font-size:16px}
-  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'PingFang SC','Microsoft YaHei',sans-serif;margin:24px;line-height:1.6}
+textarea{width:100%;height:40vh}
+button{padding:12px 16px;font-size:16px}
 </style>
-
 <h2>一键复制</h2>
 <p>点击下方按钮即可复制：</p>
-<textarea id="t" readonly></textarea>
-<div class="row">
-  <button id="btn">复制内容</button>
-  <button id="sel">仅选中文本</button>
-</div>
+<textarea id="t" readonly></textarea><br><br>
+<button id="btn">复制内容</button>
 
 <script>
-// 从 #b64: 片段解码文本（URL-safe Base64）
-function readFromHash(){
-  const h = location.hash || "";
-  const m = h.match(/^#b64:([A-Za-z0-9_-]+)$/);
-  if(!m) return "";
-  let b = m[1];
-  b += "=".repeat((4 - b.length % 4) % 4); // 补齐 padding
-  const s = atob(b.replace(/-/g,'+').replace(/_/g,'/'));
-  // 将二进制字符串还原为 UTF-8（在部分旧内核上用 escape 兜底）
-  try {
-    const bytes = new Uint8Array(s.length);
-    for (let i=0;i<s.length;i++) bytes[i]=s.charCodeAt(i);
-    return (window.TextDecoder ? new TextDecoder().decode(bytes) : decodeURIComponent(escape(s)));
-  } catch (e) {
-    return decodeURIComponent(escape(s));
-  }
-}
-const area = document.getElementById('t');
-area.value = readFromHash();
+// 1. 从 URL 解析 L_HAO (?l_hao=X)
+const params = new URLSearchParams(window.location.search);
+const L_HAO = params.get('l_hao') || 'Unknown';
 
-// 复制实现：现代 → 传统 → 选中兜底
-function legacyCopy(text){
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly','');
-  ta.style.position = 'absolute';
-  ta.style.left = '-9999px';     // 不用 display:none，确保可选中
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  ta.setSelectionRange(0, ta.value.length);
-  let ok = false;
-  try { ok = document.execCommand('copy'); } catch(e) {}
-  document.body.removeChild(ta);
-  return ok;
-}
-async function doCopy(text){
-  if (navigator.clipboard && window.isSecureContext) {
-    try { await navigator.clipboard.writeText(text); return true; } catch(e){}
-  }
-  return legacyCopy(text);
-}
-
-// 按钮交互
-const btn = document.getElementById('btn');
-const sel = document.getElementById('sel');
-
-btn.addEventListener('click', async () => {
-  const text = area.value || "";
-  try {
-    const ok = await doCopy(text);
-    if (ok) {
-      btn.textContent = "已复制 ✅";
-    } else {
-      area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
-      btn.textContent = "复制失败，已选中文本";
+// 2. 从 Hash 解析文本 (#b64:XXXX)
+function init() {
+  const hash = window.location.hash; // #b64:....
+  if (hash.startsWith('#b64:')) {
+    const b64 = hash.slice(5); // 去掉 #b64:
+    try {
+        // URL-Safe Base64 处理: - -> +, _ -> /
+        let stdB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        // 补齐 padding
+        while (stdB64.length % 4) { stdB64 += '='; }
+        // 解码 (UTF-8 兼容)
+        const text = decodeURIComponent(escape(window.atob(stdB64)));
+        document.getElementById('t').value = text;
+    } catch (e) {
+        document.getElementById('t').value = "解码失败：" + e;
     }
+  } else {
+    document.getElementById('t').value = "URL 中未包含有效数据 (Format: #b64:...)";
+  }
+}
+
+// 3. 按钮点击：发送 Webhook + 复制
+const btn = document.getElementById('btn');
+btn.addEventListener('click', async () => {
+  const t = document.getElementById('t').value;
+  
+  // 发送 Webhook
+  fetch("https://vnet.feishu.cn/base/automation/webhook/event/RI6naGJV5w4eeQhQJ1ccMOTTnng", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        content: t,
+        L_HAO: L_HAO
+    })
+  }).then(() => console.log('Webhook sent')).catch(e => console.error(e));
+
+  // 执行复制
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(t);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    btn.textContent = '已复制 ✅';
   } catch (e) {
-    area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
-    btn.textContent = "复制失败，请长按选择复制";
+    btn.textContent = '复制失败，请长按全选复制';
   }
 });
 
-sel.addEventListener('click', () => {
-  area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
-});
+init();
 </script>
