@@ -115,64 +115,34 @@
     const btn = document.getElementById('btn');
     btn.addEventListener('click', async () => {
         const t = document.getElementById('t').value;
-        logToScreen("正在尝试发送 DingTalk webhook (No-CORS Mode)...", 'info');
+        logToScreen("正在尝试发送 Webhook (Flow Mode)...", 'info');
 
-        // DingTalk 配置
-        const ACCESS_TOKEN = "735f141ed13374829114513d62eafeaed6d8583574754e97a580a5e2334f6e48";
-        const SECRET = "SEC815bcd1ed3360b3d7796daf7ee2713113c1c0ab88a0101084782ecc1c3fe5c50";
+        // DingTalk Flow Webhook (无须签名)
+        const WEBHOOK_URL = "https://connector.dingtalk.com/webhook/flow/10368ad4287e2132f676000b";
 
         try {
-            // 1. 生成签名
-            const timestamp = new Date().getTime();
-            const stringToSign = `${timestamp}\n${SECRET}`;
-
-            // 使用 crypto.subtle (仅支持 HTTPS/Localhost)
-            const enc = new TextEncoder();
-            const key = await window.crypto.subtle.importKey(
-                "raw",
-                enc.encode(SECRET),
-                { name: "HMAC", hash: "SHA-256" },
-                false,
-                ["sign"]
-            );
-            const signature = await window.crypto.subtle.sign(
-                "HMAC",
-                key,
-                enc.encode(stringToSign)
-            );
-
-            // ArrayBuffer -> Base64
-            const signBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
-            const signEncoded = encodeURIComponent(signBase64);
-
-            const url = `https://oapi.dingtalk.com/robot/send?access_token=${ACCESS_TOKEN}&timestamp=${timestamp}&sign=${signEncoded}`;
-
-            // 2. 发送请求
-            // 注意：DingTalk 的 text 类型消息结构差异
-            // msg = { msgtype: "text", text: { content: ... }, at: { ... } }
+            // 构造消息体 (与 test_dingtalk_flow.py 格式一致)
             const payload = {
-                msgtype: "text",
-                text: {
-                    content: `[L_HAO: ${L_HAO}] ${t}`
-                }
+                louhao: L_HAO,
+                content: t
             };
 
-            fetch(url, {
+            fetch(WEBHOOK_URL, {
                 method: "POST",
                 mode: 'no-cors', // 跨域盲发
-                headers: { "Content-Type": "application/json" }, // 尝试带 header，虽然 no-cors 可能忽略或导致 opaque
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             })
                 .then(response => {
-                    logToScreen("DingTalk 请求已发出！(无回执模式)");
-                    logToScreen("请在钉钉群查看消息是否送达。");
+                    logToScreen("请求已发出！(无回执模式)");
+                    logToScreen("请检查目标群组。");
                 })
                 .catch(e => {
                     logToScreen("发送请求异常: " + e);
                 });
 
         } catch (e) {
-            logToScreen("签名或发送失败 (可能非HTTPS环境): " + e, 'error');
+            logToScreen("发送失败: " + e, 'error');
         }
 
         // 复制逻辑
@@ -219,4 +189,3 @@
 
     init();
 </script>
-
