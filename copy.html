@@ -115,29 +115,65 @@
     const btn = document.getElementById('btn');
     btn.addEventListener('click', async () => {
         const t = document.getElementById('t').value;
-        logToScreen("正在尝试发送 webhook (No-CORS Mode)...", 'info');
+        logToScreen("正在尝试发送 DingTalk webhook (No-CORS Mode)...", 'info');
 
-        // ★★★ 关键修改：mode: 'no-cors'，去掉 json header ★★★
-        // 这样浏览器会作为 'text/plain' 发送 POST，不触发 OPTIONS 预检。
-        // 如果飞书后端能兼容纯文本 body 的 JSON，就能成功。
-        fetch("https://vnet.feishu.cn/base/automation/webhook/event/RI6naGJV5w4eeQhQJ1ccMOTTnng", {
-            method: "POST",
-            mode: 'no-cors', // 允许跨域盲发
-            // headers: { "Content-Type": "application/json" }, // 必须去掉，否则不是简单请求
-            body: JSON.stringify({
-                content: t,
-                L_HAO: L_HAO
+        // DingTalk 配置
+        const ACCESS_TOKEN = "735f141ed13374829114513d62eafeaed6d8583574754e97a580a5e2334f6e48";
+        const SECRET = "SEC815bcd1ed3360b3d7796daf7ee2713113c1c0ab88a0101084782ecc1c3fe5c50";
+
+        try {
+            // 1. 生成签名
+            const timestamp = new Date().getTime();
+            const stringToSign = `${timestamp}\n${SECRET}`;
+
+            // 使用 crypto.subtle (仅支持 HTTPS/Localhost)
+            const enc = new TextEncoder();
+            const key = await window.crypto.subtle.importKey(
+                "raw",
+                enc.encode(SECRET),
+                { name: "HMAC", hash: "SHA-256" },
+                false,
+                ["sign"]
+            );
+            const signature = await window.crypto.subtle.sign(
+                "HMAC",
+                key,
+                enc.encode(stringToSign)
+            );
+
+            // ArrayBuffer -> Base64
+            const signBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+            const signEncoded = encodeURIComponent(signBase64);
+
+            const url = `https://oapi.dingtalk.com/robot/send?access_token=${ACCESS_TOKEN}&timestamp=${timestamp}&sign=${signEncoded}`;
+
+            // 2. 发送请求
+            // 注意：DingTalk 的 text 类型消息结构差异
+            // msg = { msgtype: "text", text: { content: ... }, at: { ... } }
+            const payload = {
+                msgtype: "text",
+                text: {
+                    content: `[L_HAO: ${L_HAO}] ${t}`
+                }
+            };
+
+            fetch(url, {
+                method: "POST",
+                mode: 'no-cors', // 跨域盲发
+                headers: { "Content-Type": "application/json" }, // 尝试带 header，虽然 no-cors 可能忽略或导致 opaque
+                body: JSON.stringify(payload)
             })
-        })
-            .then(response => {
-                // no-cors 模式下 type 为 'opaque'，status 为 0，无法知道结果是 200 还是 500
-                // 但只要没报错，就说明请求发出去了
-                logToScreen("请求已发出！(无回执模式)");
-                logToScreen("注意：由于跨域限制，无法确认飞书接收结果，请直接查看飞书群。");
-            })
-            .catch(e => {
-                logToScreen("发送严重错误: " + e);
-            });
+                .then(response => {
+                    logToScreen("DingTalk 请求已发出！(无回执模式)");
+                    logToScreen("请在钉钉群查看消息是否送达。");
+                })
+                .catch(e => {
+                    logToScreen("发送请求异常: " + e);
+                });
+
+        } catch (e) {
+            logToScreen("签名或发送失败 (可能非HTTPS环境): " + e, 'error');
+        }
 
         // 复制逻辑
         async function performCopy(text) {
