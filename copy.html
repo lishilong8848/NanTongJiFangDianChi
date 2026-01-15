@@ -1,192 +1,194 @@
 <!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>一键复制</title>
-<style>
-    body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        margin: 24px;
-        line-height: 1.6;
-        background: #f5f5f5
-    }
+<html lang="zh-CN">
 
-    .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background: #fff;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1)
-    }
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>一键复制</title>
 
-    textarea {
-        width: 100%;
-        height: 150px;
-        margin-bottom: 16px;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-family: monospace;
-        resize: vertical
-    }
-
-    button {
-        width: 100%;
-        padding: 14px;
-        font-size: 16px;
-        color: #fff;
-        background: #007aff;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: active 0.1s
-    }
-
-    button:active {
-        opacity: 0.8
-    }
-
-    .version {
-        text-align: center;
-        font-size: 12px;
-        color: #999;
-        margin-top: 20px;
-        margin-bottom: 10px
-    }
-
-    #log {
-        margin-top: 20px;
-        padding: 10px;
-        background: #333;
-        color: #0f0;
-        font-size: 12px;
-        border-radius: 4px;
-        white-space: pre-wrap;
-        word-break: break-all;
-        display: none
-    }
-</style>
-
-<div class="container">
-    <h2>一键复制</h2>
-    <p style="color:#666;font-size:14px">点击下方按钮即可复制内容并通知：</p>
-    <textarea id="t" readonly></textarea>
-    <button id="btn">复制内容</button>
-
-    <div id="log"></div>
-    <div class="version">Page Version: v1.0.8 (No-CORS Mode)</div>
-</div>
-
-<script>
-    // --- 日志工具 ---
-    const logEl = document.getElementById('log');
-    function logToScreen(msg, type = 'info') {
-        logEl.style.display = 'block';
-        const time = new Date().toLocaleTimeString();
-        logEl.innerText += `[${time}] ${msg}\n`;
-        console.log(msg);
-    }
-
-    // 1. URL 解析
-    const params = new URLSearchParams(window.location.search);
-    const L_HAO = params.get('l_hao') || 'Unknown';
-
-    // 2. Base64 解析
-    function init() {
-        const hash = window.location.hash;
-        if (hash.startsWith('#b64:')) {
-            const b64 = hash.slice(5);
-            try {
-                let stdB64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-                while (stdB64.length % 4) { stdB64 += '='; }
-                const text = decodeURIComponent(escape(window.atob(stdB64)));
-                document.getElementById('t').value = text;
-            } catch (e) {
-                document.getElementById('t').value = "解码失败：" + e;
-                logToScreen("Base64解码错误: " + e, 'error');
-            }
-        } else {
-            document.getElementById('t').value = "URL 数据无效";
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            margin: 24px;
+            line-height: 1.6;
+            background: #f5f5f5;
         }
-    }
 
-    // 3. 点击事件
-    const btn = document.getElementById('btn');
-    btn.addEventListener('click', async () => {
-        const t = document.getElementById('t').value;
-        logToScreen("正在尝试发送 Webhook (Flow Mode)...", 'info');
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
 
-        // DingTalk Flow Webhook (无须签名)
+        textarea {
+            width: 100%;
+            height: 180px;
+            margin-bottom: 16px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            color: #fff;
+            background: #007aff;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:active {
+            opacity: 0.85;
+        }
+
+        #log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #333;
+            color: #0f0;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+
+        .version {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>一键复制</h2>
+        <p style="color:#666;font-size:14px">扫码打开页面后将自动上报，按钮仅用于复制：</p>
+        <textarea id="t" readonly></textarea>
+        <button id="btn">复制内容</button>
+
+        <div id="log"></div>
+        <div class="version">Page Version: v1.1.1 (Scan Trigger Mode)</div>
+    </div>
+
+    <script>
+        // ===== 日志工具 =====
+        const logEl = document.getElementById('log');
+        function logToScreen(msg) {
+            logEl.style.display = 'block';
+            const time = new Date().toLocaleTimeString();
+            logEl.innerText += `[${time}] ${msg}\n`;
+            console.log(msg);
+        }
+
+        // ===== URL 参数 =====
+        const params = new URLSearchParams(window.location.search);
+        const L_HAO = params.get('l_hao') || 'Unknown';
+
+        // ===== Webhook =====
         const WEBHOOK_URL = "https://connector.dingtalk.com/webhook/flow/10368af12db721468050000b";
+        let webhookSent = false;
 
-        try {
-            // 构造消息体 (与 test_dingtalk_flow.py 格式一致)
+        function sendWebhook(text) {
+            if (webhookSent) return;
+            webhookSent = true;
+
             const payload = {
                 louhao: L_HAO,
-                content: t
+                content: text
             };
 
             fetch(WEBHOOK_URL, {
                 method: "POST",
-                mode: 'no-cors', // 跨域盲发
+                mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             })
-                .then(response => {
-                    logToScreen("请求已发出！(无回执模式)");
-                    logToScreen("请检查目标群组。");
+                .then(() => {
+                    logToScreen("扫码成功，Webhook 已发送（无回执模式）");
                 })
                 .catch(e => {
-                    logToScreen("发送请求异常: " + e);
+                    logToScreen("Webhook 发送异常: " + e);
                 });
-
-        } catch (e) {
-            logToScreen("发送失败: " + e, 'error');
         }
 
-        // 复制逻辑
-        async function performCopy(text) {
-            // 优先尝试 Clipboard API
+        // ===== 初始化（扫码成功入口）=====
+        function init() {
+            const hash = window.location.hash;
+            if (!hash.startsWith("#b64:")) {
+                document.getElementById("t").value = "URL 数据无效";
+                return;
+            }
+
             try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(text);
-                    return true;
+                const b64 = hash.slice(5);
+                let stdB64 = b64.replace(/-/g, "+").replace(/_/g, "/");
+                while (stdB64.length % 4) stdB64 += "=";
+
+                const text = decodeURIComponent(escape(atob(stdB64)));
+                document.getElementById("t").value = text;
+
+                // 扫码成功 → 自动发送（仅当包含“事件通告”时）
+                if (text.includes("事件通告")) {
+                    sendWebhook(text);
+                } else {
+                    logToScreen("内容未包含'事件通告'，跳过自动发送");
                 }
-            } catch (err) {
-                console.warn("Clipboard API 失败，尝试降级方案...", err);
-            }
 
-            // 降级方案：document.execCommand
-            try {
-                const ta = document.createElement('textarea');
-                ta.value = text;
-                // 移出可视区域但保持可选中
-                ta.style.position = 'fixed';
-                ta.style.left = '-9999px';
-                ta.style.top = '0';
-                document.body.appendChild(ta);
-                ta.focus();
-                ta.select();
-                const successful = document.execCommand('copy');
-                document.body.removeChild(ta);
-                if (successful) return true;
-            } catch (err) {
-                console.error("execCommand 失败", err);
+            } catch (e) {
+                document.getElementById("t").value = "解码失败：" + e;
+                logToScreen("Base64 解码错误: " + e);
             }
-            return false;
         }
 
-        const success = await performCopy(t);
-        if (success) {
-            btn.textContent = '已复制 ✅';
-            setTimeout(() => btn.textContent = '复制内容', 3000);
-        } else {
-            logToScreen("复制失败: 浏览器均拒绝访问剪贴板");
-            btn.textContent = '复制失败';
-        }
-    });
+        // ===== 复制按钮（只复制）=====
+        document.getElementById("btn").addEventListener("click", async () => {
+            const text = document.getElementById("t").value;
 
-    init();
-</script>
+            async function copyText(t) {
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(t);
+                        return true;
+                    }
+                } catch { }
 
+                try {
+                    const ta = document.createElement("textarea");
+                    ta.value = t;
+                    ta.style.position = "fixed";
+                    ta.style.left = "-9999px";
+                    document.body.appendChild(ta);
+                    ta.select();
+                    const ok = document.execCommand("copy");
+                    document.body.removeChild(ta);
+                    return ok;
+                } catch {
+                    return false;
+                }
+            }
+
+            const ok = await copyText(text);
+            const btn = document.getElementById("btn");
+            btn.textContent = ok ? "已复制 ✅" : "复制失败";
+            setTimeout(() => btn.textContent = "复制内容", 3000);
+        });
+
+        init();
+    </script>
+
+</body>
+
+</html>
